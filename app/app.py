@@ -1,9 +1,18 @@
 import streamlit as st
 from tensorflow.keras.models import load_model
-from ultralytics import YOLO
 from PIL import Image
 import numpy as np
 import os
+
+# Try to import ultralytics lazily — don't crash the whole app if it's missing
+try:
+    from ultralytics import YOLO
+    ULTRALYTICS_OK = True
+    yolo_load_error = None
+except Exception as e:
+    ULTRALYTICS_OK = False
+    YOLO = None
+    yolo_load_error = str(e)
 
 # 🔹 Page config
 st.set_page_config(page_title="Aerial Detection System", layout="centered")
@@ -32,7 +41,17 @@ if not os.path.exists(yolo_path):
     # fallback to a generic path inside project models folder
     yolo_path = os.path.normpath(os.path.join(base_dir, '..', 'models', 'best.pt'))
 
-yolo_model = YOLO(yolo_path)
+yolo_model = None
+if ULTRALYTICS_OK:
+    try:
+        if os.path.exists(yolo_path):
+            yolo_model = YOLO(yolo_path)
+        else:
+            # keep yolo_model as None, show message later
+            yolo_load_error = f"YOLO weights not found at {yolo_path}"
+    except Exception as e:
+        yolo_model = None
+        yolo_load_error = str(e)
 
 # 🔹 Title
 st.markdown("<h1 style='text-align: center;'>🚀 Aerial Object Detection System</h1>", unsafe_allow_html=True)
@@ -60,10 +79,22 @@ if uploaded_file:
     # YOLO Detection
     with col2:
         st.subheader("🎯 Detection (YOLOv8)")
-        # ultralytics YOLO accepts numpy arrays; convert from PIL to ensure compatibility
-        results = yolo_model(np.array(img))
-        detected_img = results[0].plot()
-        st.image(detected_img, use_column_width=True)
+        if not ULTRALYTICS_OK:
+            st.warning("YOLO detection disabled: 'ultralytics' package is not installed. Check deployment logs.")
+            if yolo_load_error:
+                st.caption(yolo_load_error)
+        elif yolo_model is None:
+            st.warning(f"YOLO detection disabled: failed to load weights. ({yolo_path})")
+            if yolo_load_error:
+                st.caption(yolo_load_error)
+        else:
+            # ultralytics YOLO accepts numpy arrays; convert from PIL to ensure compatibility
+            try:
+                results = yolo_model(np.array(img))
+                detected_img = results[0].plot()
+                st.image(detected_img, use_column_width=True)
+            except Exception as e:
+                st.error(f"YOLO detection failed: {e}")
 
     st.divider()
 

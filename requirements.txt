@@ -1,6 +1,10 @@
 streamlit
+# Use the CPU build pinned in remote, keep helpful extras
 tensorflow-cpu==2.12.0
 numpy
 pillow
 ultralytics
+torch
 opencv-python-headless
+pandas
+scikit-learn
