@@ -1,5 +1,4 @@
 import streamlit as st
-from tensorflow.keras.models import load_model
 from PIL import Image
 import numpy as np
 import os
@@ -20,20 +19,43 @@ st.set_page_config(page_title="Aerial Detection System", layout="centered")
 # 🔹 Load models (paths resolved relative to this script)
 base_dir = os.path.dirname(__file__)
 model_path = os.path.normpath(os.path.join(base_dir, '..', 'models', 'best_model.h5'))
+
+# Make TensorFlow optional so the app can start even when heavy ML packages
+# are not installed in the environment (e.g., Streamlit Cloud with incompatible Python).
+clf_model = None
+TF_OK = False
+tf_load_error = None
 try:
-    clf_model = load_model(model_path)
-except TypeError as e:
-    # Handle models saved with extra keys like `quantization_config`
-    if 'quantization_config' in str(e):
-        from tensorflow.keras.layers import Dense as KerasDense
+    import tensorflow as tf
+    from tensorflow.keras.models import load_model
+    TF_OK = True
+except Exception as e:
+    TF_OK = False
+    tf_load_error = str(e)
 
-        class DenseCompat(KerasDense):
-            def __init__(self, *args, quantization_config=None, **kwargs):
-                super().__init__(*args, **kwargs)
+if TF_OK:
+    if os.path.exists(model_path):
+        try:
+            clf_model = load_model(model_path)
+        except TypeError as e:
+            # Handle models saved with extra keys like `quantization_config`
+            if 'quantization_config' in str(e):
+                from tensorflow.keras.layers import Dense as KerasDense
 
-        clf_model = load_model(model_path, custom_objects={"Dense": DenseCompat})
+                class DenseCompat(KerasDense):
+                    def __init__(self, *args, quantization_config=None, **kwargs):
+                        super().__init__(*args, **kwargs)
+
+                try:
+                    clf_model = load_model(model_path, custom_objects={"Dense": DenseCompat})
+                except Exception as e2:
+                    clf_model = None
+                    tf_load_error = str(e2)
+            else:
+                clf_model = None
+                tf_load_error = str(e)
     else:
-        raise
+        tf_load_error = f"Model file not found: {model_path}"
 
 # Prefer a valid YOLO weights path that exists in the workspace
 yolo_path = os.path.normpath(os.path.join(base_dir, '..', 'runs', 'detect', 'yolo_bird_drone3', 'weights', 'best.pt'))
@@ -113,42 +135,47 @@ if uploaded_file:
     # Add batch dimension
     img_array = np.expand_dims(img_array, axis=0)
 
-    prediction = clf_model.predict(img_array)
+    if clf_model is None:
+        st.warning("Classification disabled: TensorFlow/model not available in this environment.")
+        if tf_load_error:
+            st.caption(tf_load_error)
+    else:
+        prediction = clf_model.predict(img_array)
 
-    # Robustly extract probability and predicted class from model output
-    pred_arr = np.asarray(prediction)
-    # default
-    prob = None
-    is_drone = False
+        # Robustly extract probability and predicted class from model output
+        pred_arr = np.asarray(prediction)
+        # default
+        prob = None
+        is_drone = False
 
-    if pred_arr.ndim == 2 and pred_arr.shape[1] > 1:
-        class_idx = int(np.argmax(pred_arr[0]))
-        prob = float(pred_arr[0, class_idx])
-        is_drone = (class_idx == 1)
-    elif pred_arr.ndim == 2 and pred_arr.shape[1] == 1:
-        prob = float(pred_arr[0, 0])
-        is_drone = prob > 0.5
-    elif pred_arr.ndim == 1:
-        if pred_arr.size > 1:
-            class_idx = int(np.argmax(pred_arr))
-            prob = float(pred_arr[class_idx])
+        if pred_arr.ndim == 2 and pred_arr.shape[1] > 1:
+            class_idx = int(np.argmax(pred_arr[0]))
+            prob = float(pred_arr[0, class_idx])
             is_drone = (class_idx == 1)
-        else:
-            prob = float(pred_arr[0])
+        elif pred_arr.ndim == 2 and pred_arr.shape[1] == 1:
+            prob = float(pred_arr[0, 0])
             is_drone = prob > 0.5
-    else:
-        prob = float(np.ravel(pred_arr)[0])
-        is_drone = prob > 0.5
+        elif pred_arr.ndim == 1:
+            if pred_arr.size > 1:
+                class_idx = int(np.argmax(pred_arr))
+                prob = float(pred_arr[class_idx])
+                is_drone = (class_idx == 1)
+            else:
+                prob = float(pred_arr[0])
+                is_drone = prob > 0.5
+        else:
+            prob = float(np.ravel(pred_arr)[0])
+            is_drone = prob > 0.5
 
-    st.subheader("🧠 Classification Result")
-    if is_drone:
-        st.success("🚁 Drone Detected")
-    else:
-        st.success("🐦 Bird Detected")
+        st.subheader("🧠 Classification Result")
+        if is_drone:
+            st.success("🚁 Drone Detected")
+        else:
+            st.success("🐦 Bird Detected")
 
-    # Confidence (clamp between 0 and 1)
-    prob = max(0.0, min(1.0, prob))
-    st.write(f"Confidence: {prob:.2f}")
+        # Confidence (clamp between 0 and 1)
+        prob = max(0.0, min(1.0, prob))
+        st.write(f"Confidence: {prob:.2f}")
 
     st.divider()
 
