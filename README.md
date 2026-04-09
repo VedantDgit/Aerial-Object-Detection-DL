@@ -53,8 +53,13 @@ This project builds an intelligent system that can:
 
 Upload an image and get:
 
--  Original Image  
--  Detection with bounding boxes  
+-  Original Image
+  ![taxidermy-bird-2-43623983165b25fe16f9a8a510732574030b2347](https://github.com/user-attachments/assets/fdd3ecae-daa7-4efc-805a-1a1b41c659da)
+
+-  Detection with bounding boxes
+  <img width="2879" height="1450" alt="image" src="https://github.com/user-attachments/assets/7490e935-a4ef-4a4c-a780-ec0a6ffc1346" />
+
 -  Classification (Bird / Drone)  
+<img width="2879" height="1315" alt="image" src="https://github.com/user-attachments/assets/7bc859f8-e62c-4c6b-9879-a612338e3244" />
 
 
