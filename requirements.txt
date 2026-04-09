@@ -1,7 +1,8 @@
 streamlit
-# Minimal, compatible deps so the app can start in hosted environments.
-# Heavy ML packages (tensorflow, ultralytics/torch) are optional and can
-# be installed separately if you deploy with a compatible Python runtime.
+tensorflow-cpu==2.12.0
+torch==2.2.0+cpu
+ultralytics
+opencv-python-headless
 numpy
 pillow
 pandas
