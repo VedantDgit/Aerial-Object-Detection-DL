@@ -30,7 +30,7 @@ This project builds an intelligent system that can:
 
 ---
 
-## 🧠 Models Used
+##  Models Used
 
 | Model | Type | Description |
 |------|------|------------|
